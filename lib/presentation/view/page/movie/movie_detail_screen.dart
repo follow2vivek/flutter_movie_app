@@ -1,31 +1,23 @@
+import 'dart:developer';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:movie_app/model/movie/movie_model.dart';
 import 'package:movie_app/network/app_urls.dart';
 import 'package:movie_app/presentation/bloc/movie/movie_bloc.dart';
+import 'package:movie_app/presentation/provider/movie/movie_provider.dart';
 import 'package:movie_app/presentation/view/widget/image_tile_widget.dart';
 import 'package:movie_app/res/app_colors.dart';
 import 'package:movie_app/res/app_styles.dart';
 import 'package:transparent_image/transparent_image.dart';
 
-class MovieDetailScreen extends StatefulWidget {
+class MovieDetailScreen extends StatelessWidget {
   final MovieResults movie;
   const MovieDetailScreen({
     Key? key,
     required this.movie,
   }) : super(key: key);
-
-  @override
-  State<MovieDetailScreen> createState() => _MovieDetailScreenState();
-}
-
-class _MovieDetailScreenState extends State<MovieDetailScreen> {
-  @override
-  void initState() {
-    BlocProvider.of<MovieBloc>(context)
-        .add(RecommendedMovieEvent(movieId: widget.movie.id ?? 0));
-    super.initState();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -41,7 +33,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
           children: [
             FadeInImage.memoryNetwork(
               placeholder: kTransparentImage,
-              image: '${AppUrls.imageUrl}${widget.movie.posterPath}',
+              image: '${AppUrls.imageUrl}${movie.posterPath}',
               fit: BoxFit.cover,
               height: size.height * .25,
               width: size.width,
@@ -52,7 +44,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    widget.movie.title,
+                    movie.title,
                     style: AppStyles.defaultTextStyle.copyWith(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -71,7 +63,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                         ),
                         child: Center(
                           child: Text(
-                            widget.movie.releaseDate,
+                            movie.releaseDate,
                             style: AppStyles.defaultTextStyle.copyWith(
                               color: AppColors.white,
                               fontSize: 14,
@@ -87,7 +79,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        widget.movie.voteAverage.toString(),
+                        movie.voteAverage.toString(),
                         style: AppStyles.defaultTextStyle.copyWith(
                           color: AppColors.white,
                           fontSize: 14,
@@ -125,7 +117,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                     ),
                   ),
                   Text(
-                    widget.movie.overview,
+                    movie.overview,
                     style: AppStyles.defaultTextStyle.copyWith(
                       color: AppColors.white,
                       fontSize: 16,
@@ -145,30 +137,34 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                 ],
               ),
             ),
-            BlocBuilder<MovieBloc, MovieState>(
-              buildWhen: (previous, current) =>
-                  current is MovieRecommendedLoaded,
-              builder: (context, state) {
-                if (state is MovieRecommendedLoaded) {
-                  return GridView.count(
-                    crossAxisCount: 3,
-                    crossAxisSpacing: 10,
-                    mainAxisSpacing: 10,
-                    shrinkWrap: true,
-                    childAspectRatio: 3 / 4,
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    physics: const NeverScrollableScrollPhysics(),
-                    children: state.movieModel.results!
-                        .map(
-                          (movie) => ImageTileWidget(
-                            imageHeight: size.height * .22,
-                            imageUrl: '${AppUrls.imageUrl}${movie.posterPath}',
-                          ),
-                        )
-                        .toList(),
-                  );
-                }
-                return const SizedBox();
+            Consumer(
+              builder: (context, ref, child) {
+                ref.listen(recommendedMovie(movie.id ?? 0), (previous, next) {
+                  if (next is AsyncData) {
+                    ref.read(popularMovieStateProvider.notifier).getMovie();
+                  }
+                });
+                return ref.watch(recommendedMovie(movie.id ?? 0)).when(
+                    data: (data) => GridView.count(
+                          crossAxisCount: 3,
+                          crossAxisSpacing: 10,
+                          mainAxisSpacing: 10,
+                          shrinkWrap: true,
+                          childAspectRatio: 3 / 4,
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          physics: const NeverScrollableScrollPhysics(),
+                          children: data.results!
+                              .map(
+                                (movie) => ImageTileWidget(
+                                  imageHeight: size.height * .22,
+                                  imageUrl:
+                                      '${AppUrls.imageUrl}${movie.posterPath}',
+                                ),
+                              )
+                              .toList(),
+                        ),
+                    error: (e, st) => const SizedBox(),
+                    loading: () => const CircularProgressIndicator());
               },
             )
           ],
